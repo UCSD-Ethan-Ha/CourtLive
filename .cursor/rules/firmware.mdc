@@ -1,0 +1,41 @@
+---
+description: ESP32 firmware rules
+globs: ["firmware/**/*"]
+alwaysApply: false
+---
+
+# Firmware Rules
+
+## Defines (top of main.cpp — filled before flashing)
+#define SSID          "UCSD-PROTECTED"
+#define WIFI_PASS     "..."
+#define SERVER_URL    "https://api.ethanha.com/api/reading"
+#define API_KEY       "[DEVICE_API_KEY value from .env]"
+#define COURT_ID      1        // change per device for each court
+#define PIR_PIN       13
+#define FALLBACK_S    300      // 5 min fallback if server unreachable
+#define MAX_SLEEP_S   3600     // 1hr cap — ESP32 timer limit
+
+## Deep Sleep Pattern
+- RTC_DATA_ATTR int bootCount survives deep sleep
+- On bootCount == 1: delay(60000) for PIR sensor warmup
+- After every action: call esp_deep_sleep_start() — loop() is always empty
+- Sleep duration comes from server response sleep_seconds field
+- Always cap sleep at MAX_SLEEP_S before passing to timer
+
+## WiFi Pattern
+- Try 20 times with 500ms delay between attempts
+- On failure: sleep FALLBACK_S and retry — never hang indefinitely
+
+## HTTP Pattern
+- Use WiFiClientSecure + HTTPClient
+- client.setInsecure() is acceptable for prototype
+- POST body: {"court_id": COURT_ID, "occupied": true/false}
+- Header: X-API-Key: API_KEY
+- Parse response JSON with ArduinoJson StaticJsonDocument<128>
+- On any HTTP error: return FALLBACK_S from sendReading()
+
+## Never
+- Never use delay() in the main loop (use deep sleep instead)
+- Never use String concatenation in a loop (heap fragmentation)
+- Never expose API_KEY in comments or serial output

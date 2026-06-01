@@ -1,0 +1,47 @@
+---
+description: Backend API rules
+globs: ["backend/**/*"]
+alwaysApply: false
+---
+
+# Backend Rules
+
+## File Structure
+All API logic lives in backend/src/index.ts (single file).
+Do not create additional files unless explicitly asked.
+
+## Turso / libSQL Client
+Always import from @libsql/client:
+  import { createClient } from "@libsql/client"
+  const db = createClient({ url: process.env.TURSO_URL!, authToken: process.env.TURSO_AUTH_TOKEN! })
+
+Query pattern (always use named args, never string interpolation):
+  const result = await db.execute({ sql: "SELECT ...", args: [value] })
+  const rows = result.rows  // type: Row[]
+
+## Route Contracts
+
+POST /api/reading
+  Auth:    req.headers["x-api-key"] === process.env.DEVICE_API_KEY
+  Body:    { court_id: number, occupied: boolean }
+  Action:  INSERT readings; if occupied UPSERT court_status with expires_at = now+10min
+  Return:  { ok: true, sleep_seconds: getSleepSeconds() }
+
+GET /api/courts
+  Auth:    none
+  Return:  Array of { court_id: number, occupied: boolean, updated_at: string }
+  SQL:     CASE WHEN occupied=1 AND expires_at > [now ISO] THEN 1 ELSE 0 END AS occupied
+
+GET /ping
+  Auth:    none, no DB call
+  Return:  { ok: true }
+
+## Security
+- Rate limit POST /api/reading: 10 req/min per API key (express-rate-limit)
+- CORS origin must come from process.env.FRONTEND_URL — never "*" in production
+- Never log the API key or auth token
+
+## Render Deployment
+- Build command: npm install && npm run build
+- Start command:  node dist/index.js
+- All env vars set in Render dashboard, not in code

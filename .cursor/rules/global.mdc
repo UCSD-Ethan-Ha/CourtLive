@@ -1,0 +1,49 @@
+---
+description: Project-wide rules for courtlive
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# CourtLive — Global Rules
+
+## Project Context
+UCSD ECE 196 engineering project. ESP32 PCB with PIR sensor detects court
+occupancy and sends data to a hosted API. A public dashboard shows live status.
+
+## Stack
+- Backend:  Node.js + Express + TypeScript, deployed on Render (free tier)
+- Database: Turso (SQLite via libSQL) — NOT MySQL
+- Frontend: React + Vite + TypeScript, deployed on Vercel via CLI
+- Firmware: Arduino C++ on ESP32 via PlatformIO
+
+## Critical Constants
+- ESP32 polls every 300 seconds (5 minutes)
+- Occupancy expires 10 minutes after last occupied ping
+- Sensor marked offline if updated_at > 12 minutes old
+- Court hours: Mon-Fri 7am-11pm, Sat-Sun 8am-10pm (America/Los_Angeles)
+- getSleepSeconds() returns 300 during hours, seconds-until-open outside (cap 3600)
+
+## SQLite Rules (Turso uses SQLite, NOT MySQL)
+- Use INTEGER (0 or 1) for booleans — never BOOLEAN
+- Use TEXT in ISO 8601 format for timestamps — never DATETIME or NOW()
+- Compute expiry in JavaScript: new Date(Date.now() + ms).toISOString()
+- Upsert syntax: ON CONFLICT(col) DO UPDATE SET ... — never ON DUPLICATE KEY
+- db.execute() takes { sql: string, args: any[] } — never positional mysql2 style
+
+## Production Domains (ethanha.com — not courtlive.com)
+- Dashboard (Vercel): https://ethanha.com
+- API (Render custom domain): https://api.ethanha.com
+- UptimeRobot / firmware target: https://api.ethanha.com/ping and /api/reading
+
+## Environment Variables (never hardcode these)
+Backend:  TURSO_URL, TURSO_AUTH_TOKEN, DEVICE_API_KEY, FRONTEND_URL (https://ethanha.com in prod), PORT
+Frontend: VITE_API_URL (https://api.ethanha.com in prod)
+Firmware: defined as #define constants in main.cpp (filled before flashing)
+
+## Code Style
+- TypeScript strict mode everywhere (frontend + backend)
+- No default exports in hooks or utility files — named exports only
+- No external UI component libraries (no shadcn, MUI, Chakra, etc.)
+- CSS: inline styles or a single <style> block — no CSS modules, no Tailwind
+- Every async function must have try/catch with a meaningful error message
+- Never use console.log in production paths — use console.error for errors only
